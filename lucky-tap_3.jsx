@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from "react";
+import React, { useState, useRef, useMemo, useEffect } from "react";
 
 // ---- Theme: modern cash-app aesthetic ---------------------------------
 const COLORS = {
@@ -47,6 +47,152 @@ function fmt(n) {
 function rand(min, max) {
   return min + Math.random() * (max - min);
 }
+function sliderTrack(value, max, color) {
+  const pct = max > 0 ? Math.min(100, Math.max(0, (value / max) * 100)) : 0;
+  return `linear-gradient(to right, ${color} 0%, ${color} ${pct}%, rgba(255,255,255,0.12) ${pct}%, rgba(255,255,255,0.12) 100%)`;
+}
+
+const BOND_RATE = 0.06;
+const BOND_INTERVAL_SEC = 30;
+
+const EVENT_CHANCE = 0.06;
+const EVENT_COOLDOWN_MS = 20000;
+const EVENT_AUTO_DISMISS_MS = 9000;
+const EVENT_STAKE_PCT = 0.3;
+
+function stakeFrom(balance) {
+  return Math.max(1, Math.round(balance * EVENT_STAKE_PCT));
+}
+function pick(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+const FRIEND_NAMES = ["Jamie", "Marcus", "Priya", "Deshawn", "Elena", "Kofi", "Nadia", "Tyler", "Sofia", "Andre", "Mei", "Owen"];
+const COMPANY_PREFIXES = ["Quantum", "Nova", "Byte", "Lunar", "Turbo", "Giga", "Pixel", "Velvet", "Rocket", "Cosmic", "Neon", "Frosty"];
+const COMPANY_SUFFIXES = ["Dynamics", "Labs", "Corp", "Industries", "Ventures", "Systems", "Holdings", "Collective", "Works", "Group"];
+const CRYPTO_PREFIXES = ["Doge", "Moon", "Byte", "Giga", "Frog", "Toast", "Noodle", "Turbo", "Pixel", "Velvet"];
+const CRYPTO_SUFFIXES = ["Coin", "Token", "Cash", "Bucks", "Finance", "Chain"];
+
+function randomFriend() {
+  return pick(FRIEND_NAMES);
+}
+function randomCompany() {
+  return `${pick(COMPANY_PREFIXES)} ${pick(COMPANY_SUFFIXES)}`;
+}
+function randomCrypto() {
+  return `${pick(CRYPTO_PREFIXES)}${pick(CRYPTO_SUFFIXES)}`;
+}
+
+// Every template returns a title/description/win-lose flavor text. All of them
+// follow the same mechanic: stake 30% of the current balance on a 50/50 flip.
+const EVENT_TEMPLATES = [
+  {
+    icon: "\u{1F4C8}",
+    build: (balance) => {
+      const friend = randomFriend();
+      const company = randomCompany();
+      const amount = stakeFrom(balance);
+      return {
+        title: "Hot stock tip",
+        description: `${friend} texts you: "bro, ${company} is about to blow up, trust me." Put in $${fmt(amount)}?`,
+        amount,
+        winText: `${company} actually popped off. Nice.`,
+        loseText: `${company} cratered. ${friend} has gone quiet.`,
+      };
+    },
+  },
+  {
+    icon: "\u{1FA99}",
+    build: (balance) => {
+      const coin = randomCrypto();
+      const amount = stakeFrom(balance);
+      return {
+        title: "Crypto DM",
+        description: `A stranger slides into your DMs: "get in on $${coin} before it moons." Send $${fmt(amount)}?`,
+        amount,
+        winText: `$${coin} actually mooned. Screenshot that.`,
+        loseText: `$${coin} rugged. The stranger blocked you.`,
+      };
+    },
+  },
+  {
+    icon: "\u{1F3A9}",
+    build: (balance) => {
+      const amount = stakeFrom(balance);
+      return {
+        title: "Street magician",
+        description: `A street magician bets he can guess your card. Wager $${fmt(amount)} that he's wrong?`,
+        amount,
+        winText: "He guessed wrong! Crowd goes wild, cash doubles.",
+        loseText: "He nailed it on the first try. Slow clap.",
+      };
+    },
+  },
+  {
+    icon: "\u{1F3B0}",
+    build: (balance) => {
+      const amount = stakeFrom(balance);
+      return {
+        title: "Mystery vending machine",
+        description: `You find a vending machine that either doubles your cash or eats it. Feed it $${fmt(amount)}?`,
+        amount,
+        winText: "Ka-ching! The machine spits out double.",
+        loseText: "The machine swallows it with a sad beep.",
+      };
+    },
+  },
+  {
+    icon: "\u{1F3C6}",
+    build: (balance) => {
+      const amount = stakeFrom(balance);
+      return {
+        title: "Office pool",
+        description: `Your coworkers start a surprise fantasy league buy-in. Chip in $${fmt(amount)}?`,
+        amount,
+        winText: "Your bracket somehow survives. You cash out big.",
+        loseText: "Your bracket is destroyed in round one.",
+      };
+    },
+  },
+  {
+    icon: "\u{1F3FA}",
+    build: (balance) => {
+      const amount = stakeFrom(balance);
+      return {
+        title: "Garage sale gamble",
+        description: `A dusty lamp at a garage sale looks suspiciously like an antique. Buy it for $${fmt(amount)}?`,
+        amount,
+        winText: "Turns out it's a rare collector's piece. Jackpot.",
+        loseText: "It's just a lamp. A regular, ordinary lamp.",
+      };
+    },
+  },
+  {
+    icon: "\u{1F0CF}",
+    build: (balance) => {
+      const amount = stakeFrom(balance);
+      return {
+        title: "Late-night poker",
+        description: `Your buddy invites you to a high-stakes poker night. Buy in for $${fmt(amount)}?`,
+        amount,
+        winText: "You bluff your way to a huge pot. Cha-ching.",
+        loseText: "You get cleaned out by round two.",
+      };
+    },
+  },
+  {
+    icon: "\u{1F3AB}",
+    build: (balance) => {
+      const amount = stakeFrom(balance);
+      return {
+        title: "Suspicious raffle",
+        description: `A guy outside the grocery store is running a raffle for a "guaranteed prize." Buy in for $${fmt(amount)}?`,
+        amount,
+        winText: "You actually win the prize. Shockingly legit.",
+        loseText: "There was no prize. There was never a prize.",
+      };
+    },
+  },
+];
 
 const BET_CHIPS = [10, 50, 100, 250];
 const BET_TYPES = [
@@ -165,13 +311,75 @@ export default function LuckyTap() {
   const [message, setMessage] = useState("Pick a bet, then spin the wheel.");
   const [history, setHistory] = useState([]);
 
+  // Investment bonds: money set aside compounds at 6% every 30 seconds
+  const [invested, setInvested] = useState(0);
+  const [depositAmount, setDepositAmount] = useState(50);
+  const [withdrawAmount, setWithdrawAmount] = useState(0);
+  const [secondsLeft, setSecondsLeft] = useState(BOND_INTERVAL_SEC);
+  const [totalInterestEarned, setTotalInterestEarned] = useState(0);
+  const [interestPulseId, setInterestPulseId] = useState(0);
+  const [lastInterestAmt, setLastInterestAmt] = useState(0);
+
+  // Random side-events triggered occasionally while tapping
+  const [activeEvent, setActiveEvent] = useState(null);
+
   const comboRef = useRef(0);
   const lastTapRef = useRef(0);
   const comboTimerRef = useRef(null);
   const grabTimerRef = useRef(null);
   const touchPointRef = useRef({ x: 0, y: 0 });
+  const lastEventTimeRef = useRef(0);
+  const eventTimeoutRef = useRef(null);
 
   const stake = Math.max(0, Math.min(betAmount, balance));
+  const depositStake = Math.max(0, Math.min(depositAmount, balance));
+  const withdrawStake = Math.max(0, Math.min(withdrawAmount, invested));
+
+  // Keep slider values sane if balance/invested shrink from other actions
+  useEffect(() => {
+    setDepositAmount((d) => Math.min(d, balance));
+  }, [balance]);
+  useEffect(() => {
+    setWithdrawAmount((w) => Math.min(w, invested));
+  }, [invested]);
+
+  // Applies 6% compound interest to the invested pool every 30 seconds,
+  // regardless of which screen is currently open.
+  useEffect(() => {
+    const id = setInterval(() => {
+      setInvested((v) => {
+        if (v <= 0) return v;
+        const interest = v * BOND_RATE;
+        setLastInterestAmt(interest);
+        setInterestPulseId((n) => n + 1);
+        setTotalInterestEarned((t) => t + interest);
+        return v + interest;
+      });
+      setSecondsLeft(BOND_INTERVAL_SEC);
+    }, BOND_INTERVAL_SEC * 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // One-second countdown just for the "next payout in..." display
+  useEffect(() => {
+    const id = setInterval(() => {
+      setSecondsLeft((s) => (s > 0 ? s - 1 : 0));
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  function depositToBonds(amount) {
+    const amt = Math.max(0, Math.min(amount, balance));
+    if (amt <= 0) return;
+    setBalance((b) => b - amt);
+    setInvested((v) => v + amt);
+  }
+  function withdrawFromBonds(amount) {
+    const amt = Math.max(0, Math.min(amount, invested));
+    if (amt <= 0) return;
+    setInvested((v) => v - amt);
+    setBalance((b) => b + amt);
+  }
 
   // Flat bonuses add up, then every multiplier item stacks on top.
   const { baseTapValue, totalMultiplier } = useMemo(() => {
@@ -234,12 +442,54 @@ export default function LuckyTap() {
     setPulseId((n) => n + 1);
     bumpGrab();
     pullBill(angleDeg);
+    maybeTriggerEvent(balance + value);
 
     const popupId = Math.random().toString(36).slice(2) + "-p";
     setPopups((p) => [...p, { id: popupId, value }]);
     setTimeout(() => {
       setPopups((p) => p.filter((pt) => pt.id !== popupId));
     }, 700);
+  }
+
+  function maybeTriggerEvent(currentBalance) {
+    if (activeEvent) return;
+    const now = Date.now();
+    if (now - lastEventTimeRef.current < EVENT_COOLDOWN_MS) return;
+    if (currentBalance < 20) return;
+    if (Math.random() > EVENT_CHANCE) return;
+
+    lastEventTimeRef.current = now;
+    const template = EVENT_TEMPLATES[Math.floor(Math.random() * EVENT_TEMPLATES.length)];
+    const built = template.build(currentBalance);
+    const ev = {
+      id: Math.random().toString(36).slice(2),
+      icon: template.icon,
+      resolved: false,
+      outcome: null,
+      ...built,
+    };
+    setActiveEvent(ev);
+    if (eventTimeoutRef.current) clearTimeout(eventTimeoutRef.current);
+    eventTimeoutRef.current = setTimeout(() => {
+      setActiveEvent((cur) => (cur && cur.id === ev.id && !cur.resolved ? null : cur));
+    }, EVENT_AUTO_DISMISS_MS);
+  }
+
+  function resolveEvent() {
+    setActiveEvent((cur) => {
+      if (!cur || cur.resolved) return cur;
+      const win = Math.random() < 0.5;
+      setBalance((b) => (win ? b + cur.amount : b - cur.amount));
+      if (win) setPulseId((n) => n + 1);
+      if (eventTimeoutRef.current) clearTimeout(eventTimeoutRef.current);
+      eventTimeoutRef.current = setTimeout(() => setActiveEvent(null), 2600);
+      return { ...cur, resolved: true, outcome: win ? "win" : "lose" };
+    });
+  }
+
+  function skipEvent() {
+    if (eventTimeoutRef.current) clearTimeout(eventTimeoutRef.current);
+    setActiveEvent(null);
   }
 
   // Click / single tap: pull upward with a bit of natural spread
@@ -369,6 +619,49 @@ export default function LuckyTap() {
           50% { box-shadow: 0 0 0 12px rgba(0,230,118,0); }
         }
         .lt-spin-ready { animation: lt-glow-pulse 1.8s ease-in-out infinite; }
+        @keyframes lt-toast-in {
+          0% { transform: translateX(24px); opacity: 0; }
+          100% { transform: translateX(0); opacity: 1; }
+        }
+        .lt-event-toast { animation: lt-toast-in 0.25s ease-out; }
+        .lt-event-btn { transition: transform 0.08s ease, opacity 0.15s ease; }
+        .lt-event-btn:active { transform: scale(0.96); }
+        .lt-slider {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 100%;
+          height: 6px;
+          border-radius: 999px;
+          outline: none;
+          cursor: pointer;
+          display: block;
+        }
+        .lt-slider::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          background: #ffffff;
+          border: 3px solid #00E676;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.45);
+          cursor: pointer;
+        }
+        .lt-slider::-moz-range-thumb {
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          background: #ffffff;
+          border: 3px solid #00E676;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.45);
+          cursor: pointer;
+        }
+        .lt-slider::-moz-range-track {
+          height: 6px;
+          border-radius: 999px;
+          background: transparent;
+        }
+        .lt-slider:disabled { opacity: 0.4; cursor: not-allowed; }
       `}</style>
 
       {/* Ambient background glyphs */}
@@ -440,6 +733,8 @@ export default function LuckyTap() {
           </div>
         </div>
 
+        <EventToast event={activeEvent} onInvest={resolveEvent} onSkip={skipEvent} />
+
         {/* Body */}
         <div style={{ padding: "26px 20px 16px" }}>
           {screen === "tap" && (
@@ -458,6 +753,24 @@ export default function LuckyTap() {
           )}
           {screen === "market" && (
             <Market balance={balance} levels={levels} onBuy={buyItem} />
+          )}
+          {screen === "bonds" && (
+            <Bonds
+              balance={balance}
+              invested={invested}
+              depositAmount={depositAmount}
+              setDepositAmount={setDepositAmount}
+              depositStake={depositStake}
+              withdrawAmount={withdrawAmount}
+              setWithdrawAmount={setWithdrawAmount}
+              withdrawStake={withdrawStake}
+              secondsLeft={secondsLeft}
+              totalInterestEarned={totalInterestEarned}
+              interestPulseId={interestPulseId}
+              lastInterestAmt={lastInterestAmt}
+              onDeposit={depositToBonds}
+              onWithdraw={withdrawFromBonds}
+            />
           )}
           {screen === "table" && (
             <TableFloor
@@ -482,9 +795,10 @@ export default function LuckyTap() {
         {/* Nav */}
         <div style={{ display: "flex", gap: 8, padding: "12px 16px 18px" }}>
           {[
-            { id: "tap", label: "Tap floor" },
+            { id: "tap", label: "Tap" },
             { id: "market", label: "Market" },
-            { id: "table", label: "The table" },
+            { id: "bonds", label: "Bonds" },
+            { id: "table", label: "Table" },
           ].map((t) => (
             <button
               key={t.id}
@@ -535,6 +849,91 @@ function CashStack({ grabbing }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function EventToast({ event, onInvest, onSkip }) {
+  if (!event) return null;
+  return (
+    <div
+      className="lt-event-toast"
+      style={{
+        position: "absolute",
+        top: 84,
+        right: 14,
+        width: 220,
+        zIndex: 30,
+        background: "rgba(15,12,4,0.92)",
+        backdropFilter: "blur(10px)",
+        border: `1px solid rgba(227,179,65,0.45)`,
+        borderRadius: 16,
+        padding: "13px 14px",
+        boxShadow: "0 16px 36px rgba(0,0,0,0.5), 0 0 24px rgba(227,179,65,0.12)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: event.resolved ? 4 : 8 }}>
+        <span style={{ fontSize: 18 }}>{event.icon}</span>
+        <span style={{ fontWeight: 800, color: COLORS.text, fontSize: 13 }}>{event.title}</span>
+      </div>
+
+      {!event.resolved ? (
+        <>
+          <div style={{ color: COLORS.textDim, fontSize: 12, lineHeight: 1.4, marginBottom: 12 }}>
+            {event.description}
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button
+              className="lt-event-btn"
+              onClick={onInvest}
+              style={{
+                flex: 1,
+                border: "none",
+                borderRadius: 10,
+                padding: "9px 0",
+                background: `linear-gradient(135deg, #F3D77A, ${COLORS.gold} 60%, #B8912E)`,
+                color: "#1A1000",
+                fontWeight: 800,
+                fontSize: 12,
+                cursor: "pointer",
+              }}
+            >
+              Invest ${fmt(event.amount)}
+            </button>
+            <button
+              className="lt-event-btn"
+              onClick={onSkip}
+              style={{
+                border: `1px solid rgba(255,255,255,0.16)`,
+                borderRadius: 10,
+                padding: "9px 12px",
+                background: "transparent",
+                color: COLORS.textDim,
+                fontWeight: 700,
+                fontSize: 12,
+                cursor: "pointer",
+              }}
+            >
+              Skip
+            </button>
+          </div>
+        </>
+      ) : (
+        <div>
+          <div
+            style={{
+              fontWeight: 800,
+              fontSize: 14,
+              color: event.outcome === "win" ? COLORS.green : COLORS.red,
+            }}
+          >
+            {event.outcome === "win" ? `+$${fmt(event.amount)}` : `-$${fmt(event.amount)}`}
+          </div>
+          <div style={{ color: COLORS.textDim, fontSize: 12, marginTop: 3, lineHeight: 1.4 }}>
+            {event.outcome === "win" ? event.winText : event.loseText}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -772,6 +1171,229 @@ function Market({ balance, levels, onBuy }) {
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function Bonds({
+  balance,
+  invested,
+  depositAmount,
+  setDepositAmount,
+  depositStake,
+  withdrawAmount,
+  setWithdrawAmount,
+  withdrawStake,
+  secondsLeft,
+  totalInterestEarned,
+  interestPulseId,
+  lastInterestAmt,
+  onDeposit,
+  onWithdraw,
+}) {
+  const progressPct = ((BOND_INTERVAL_SEC - secondsLeft) / BOND_INTERVAL_SEC) * 100;
+  const PRESETS = [0.25, 0.5, 0.75, 1];
+
+  return (
+    <div>
+      <div style={{ marginBottom: 18 }}>
+        <div style={{ fontSize: 17, fontWeight: 800, color: COLORS.text, letterSpacing: "-0.01em" }}>
+          Investment bonds
+        </div>
+        <div style={{ color: COLORS.textDim, fontSize: 13, marginTop: 3 }}>
+          Set cash aside and it earns {Math.round(BOND_RATE * 100)}% every {BOND_INTERVAL_SEC} seconds.
+        </div>
+      </div>
+
+      {/* Invested balance card */}
+      <div
+        style={{
+          position: "relative",
+          background: "rgba(255,255,255,0.03)",
+          border: `1px solid ${COLORS.glassBorder}`,
+          borderRadius: 18,
+          padding: "18px 18px 16px",
+          marginBottom: 16,
+          overflow: "visible",
+        }}
+      >
+        <div style={{ color: COLORS.textDim, fontSize: 11, fontWeight: 600, letterSpacing: "0.02em" }}>
+          Invested
+        </div>
+        <div
+          key={interestPulseId}
+          className="lt-balance-pulse"
+          style={{ fontSize: 28, fontWeight: 800, color: COLORS.green, marginTop: 2, fontVariantNumeric: "tabular-nums" }}
+        >
+          ${fmt(invested)}
+        </div>
+        {interestPulseId > 0 && (
+          <span
+            key={"pop-" + interestPulseId}
+            className="lt-popup"
+            style={{ left: "50%", top: 4, color: COLORS.green, fontWeight: 800, fontSize: 14 }}
+          >
+            +${fmt(lastInterestAmt)}
+          </span>
+        )}
+
+        <div style={{ marginTop: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+            <span style={{ color: COLORS.textDim, fontSize: 11 }}>Next payout</span>
+            <span style={{ color: COLORS.textDim, fontSize: 11, fontVariantNumeric: "tabular-nums" }}>
+              {secondsLeft}s
+            </span>
+          </div>
+          <div style={{ height: 6, borderRadius: 999, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
+            <div
+              style={{
+                height: "100%",
+                width: `${progressPct}%`,
+                background: `linear-gradient(90deg, ${COLORS.green}, #1BFF9C)`,
+                transition: "width 1s linear",
+                borderRadius: 999,
+              }}
+            />
+          </div>
+        </div>
+
+        <div style={{ color: COLORS.textDim, fontSize: 11, marginTop: 12 }}>
+          Total interest earned:{" "}
+          <span style={{ color: COLORS.green, fontWeight: 700 }}>${fmt(totalInterestEarned)}</span>
+        </div>
+      </div>
+
+      {/* Deposit */}
+      <div style={{ marginBottom: 22 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+          <span style={{ color: COLORS.textDim, fontSize: 12 }}>Deposit from balance</span>
+          <span style={{ color: COLORS.green, fontSize: 13, fontWeight: 700 }}>${fmt(depositStake)}</span>
+        </div>
+        <input
+          type="range"
+          className="lt-slider"
+          min={0}
+          max={Math.max(0, balance)}
+          step={1}
+          value={depositStake}
+          disabled={balance <= 0}
+          onChange={(e) => setDepositAmount(Number(e.target.value))}
+          style={{ background: sliderTrack(depositStake, balance, COLORS.green) }}
+        />
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 5 }}>
+          <span style={{ color: COLORS.textDim, fontSize: 10 }}>$0</span>
+          <span style={{ color: COLORS.textDim, fontSize: 10 }}>${fmt(balance)}</span>
+        </div>
+        <div style={{ display: "flex", gap: 6, marginTop: 10, marginBottom: 12 }}>
+          {PRESETS.map((pct) => (
+            <button
+              key={pct}
+              className="lt-pill"
+              onClick={() => setDepositAmount(Math.round(balance * pct))}
+              style={{
+                flex: 1,
+                padding: "7px 0",
+                borderRadius: 999,
+                border: `1px solid ${COLORS.glassBorder}`,
+                background: "transparent",
+                color: COLORS.textDim,
+                fontWeight: 700,
+                fontSize: 11,
+                cursor: "pointer",
+              }}
+            >
+              {pct === 1 ? "Max" : `${pct * 100}%`}
+            </button>
+          ))}
+        </div>
+        <button
+          className="lt-buy-btn"
+          disabled={depositStake <= 0}
+          onClick={() => onDeposit(depositStake)}
+          style={{
+            width: "100%",
+            padding: "14px 0",
+            borderRadius: 14,
+            border: "none",
+            background:
+              depositStake > 0
+                ? `linear-gradient(135deg, #1BFF9C, ${COLORS.green} 60%, #00A855)`
+                : "rgba(255,255,255,0.06)",
+            color: depositStake > 0 ? "#05130C" : COLORS.textDim,
+            fontSize: 14,
+            fontWeight: 800,
+            cursor: depositStake > 0 ? "pointer" : "not-allowed",
+          }}
+        >
+          Deposit ${fmt(depositStake)}
+        </button>
+      </div>
+
+      {/* Withdraw */}
+      <div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+          <span style={{ color: COLORS.textDim, fontSize: 12 }}>Withdraw back to balance</span>
+          <span style={{ color: COLORS.green, fontSize: 13, fontWeight: 700 }}>${fmt(withdrawStake)}</span>
+        </div>
+        <input
+          type="range"
+          className="lt-slider"
+          min={0}
+          max={Math.max(0, invested)}
+          step={1}
+          value={withdrawStake}
+          disabled={invested <= 0}
+          onChange={(e) => setWithdrawAmount(Number(e.target.value))}
+          style={{ background: sliderTrack(withdrawStake, invested, COLORS.green) }}
+        />
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 5 }}>
+          <span style={{ color: COLORS.textDim, fontSize: 10 }}>$0</span>
+          <span style={{ color: COLORS.textDim, fontSize: 10 }}>${fmt(invested)}</span>
+        </div>
+        <div style={{ display: "flex", gap: 6, marginTop: 10, marginBottom: 12 }}>
+          {PRESETS.map((pct) => (
+            <button
+              key={pct}
+              className="lt-pill"
+              onClick={() => setWithdrawAmount(Math.round(invested * pct))}
+              style={{
+                flex: 1,
+                padding: "7px 0",
+                borderRadius: 999,
+                border: `1px solid ${COLORS.glassBorder}`,
+                background: "transparent",
+                color: COLORS.textDim,
+                fontWeight: 700,
+                fontSize: 11,
+                cursor: "pointer",
+              }}
+            >
+              {pct === 1 ? "All" : `${pct * 100}%`}
+            </button>
+          ))}
+        </div>
+        <button
+          className="lt-buy-btn"
+          disabled={withdrawStake <= 0}
+          onClick={() => {
+            onWithdraw(withdrawStake);
+            setWithdrawAmount(0);
+          }}
+          style={{
+            width: "100%",
+            padding: "14px 0",
+            borderRadius: 14,
+            border: `1px solid ${withdrawStake > 0 ? COLORS.green : COLORS.glassBorder}`,
+            background: withdrawStake > 0 ? "rgba(0,230,118,0.12)" : "transparent",
+            color: withdrawStake > 0 ? COLORS.green : COLORS.textDim,
+            fontSize: 14,
+            fontWeight: 800,
+            cursor: withdrawStake > 0 ? "pointer" : "not-allowed",
+          }}
+        >
+          Withdraw ${fmt(withdrawStake)}
+        </button>
       </div>
     </div>
   );
