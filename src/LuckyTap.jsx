@@ -44,6 +44,65 @@ function colorHex(c) {
 function fmt(n) {
   return Math.round(n).toLocaleString();
 }
+function fmtCompact(n) {
+  const num = Math.round(n);
+  const abs = Math.abs(num);
+  const units = [
+    { value: 1e15, suffix: "Q" },
+    { value: 1e12, suffix: "T" },
+    { value: 1e9, suffix: "B" },
+    { value: 1e6, suffix: "M" },
+    { value: 1e3, suffix: "K" },
+  ];
+  for (const u of units) {
+    if (abs >= u.value) {
+      const scaled = num / u.value;
+      const decimals = abs >= u.value * 100 ? 0 : 1;
+      return scaled.toFixed(decimals).replace(/\.0$/, "") + u.suffix;
+    }
+  }
+  return num.toLocaleString();
+}
+
+// Net-worth rank titles, playful and loosely inspired by real tycoons/celebrities
+// (names are deliberately altered/punned, not the real thing). Gaps start tight
+// and widen as the numbers get sillier.
+const RANKS = [
+  { threshold: 0, title: "Broke College Student" },
+  { threshold: 1000, title: "Barely Employed" },
+  { threshold: 5000, title: "Has a Savings Account" },
+  { threshold: 15000, title: "Neighborhood Hustler" },
+  { threshold: 50000, title: "Local Business Owner" },
+  { threshold: 150000, title: "Suburban Landlord" },
+  { threshold: 500000, title: "Half-Millionaire" },
+  { threshold: 1500000, title: "Crypto Bro Who Actually Won" },
+  { threshold: 5000000, title: "Reality TV Rich Kid" },
+  { threshold: 15000000, title: "Minor Celebrity" },
+  { threshold: 50000000, title: "Kartrashian-Adjacent" },
+  { threshold: 150000000, title: "A-List Movie Star" },
+  { threshold: 500000000, title: "Sports Team Owner" },
+  { threshold: 1000000000, title: "Certified Billionaire" },
+  { threshold: 5000000000, title: "Geoff Bezno's" },
+  { threshold: 15000000000, title: "Bill Gatez" },
+  { threshold: 50000000000, title: "Warren Buffit-More" },
+  { threshold: 150000000000, title: "Mork Zuckerbird" },
+  { threshold: 500000000000, title: "Bernard ArnoYacht" },
+  { threshold: 1000000000000, title: "Hewon Must" },
+  { threshold: 5000000000000, title: "Multiverse Mogul" },
+  { threshold: 15000000000000, title: "Galactic Trillionaire" },
+  { threshold: 50000000000000, title: "Owns the Federal Reserve" },
+  { threshold: 150000000000000, title: "Prints Money Faster Than the Fed" },
+  { threshold: 500000000000000, title: "Bought the Moon" },
+  { threshold: 1000000000000000, title: "Basically a Deity at This Point" },
+];
+function getRankIndex(netWorth) {
+  let idx = 0;
+  for (let i = 0; i < RANKS.length; i++) {
+    if (netWorth >= RANKS[i].threshold) idx = i;
+    else break;
+  }
+  return idx;
+}
 function rand(min, max) {
   return min + Math.random() * (max - min);
 }
@@ -323,6 +382,9 @@ export default function LuckyTap() {
   // Random side-events triggered occasionally while tapping
   const [activeEvent, setActiveEvent] = useState(null);
 
+  // Net-worth rank tracking
+  const [rankUpToast, setRankUpToast] = useState(null);
+
   const comboRef = useRef(0);
   const lastTapRef = useRef(0);
   const comboTimerRef = useRef(null);
@@ -330,10 +392,35 @@ export default function LuckyTap() {
   const touchPointRef = useRef({ x: 0, y: 0 });
   const lastEventTimeRef = useRef(0);
   const eventTimeoutRef = useRef(null);
+  const prevRankIndexRef = useRef(null);
+  const rankUpTimerRef = useRef(null);
 
   const stake = Math.max(0, Math.min(betAmount, balance));
   const depositStake = Math.max(0, Math.min(depositAmount, balance));
   const withdrawStake = Math.max(0, Math.min(withdrawAmount, invested));
+
+  // Net worth drives the rank system: spendable balance plus whatever's invested in bonds
+  const netWorth = balance + invested;
+  const rankIndex = useMemo(() => getRankIndex(netWorth), [netWorth]);
+  const currentRank = RANKS[rankIndex];
+  const nextRank = RANKS[rankIndex + 1] || null;
+  const rankProgressPct = nextRank
+    ? Math.min(100, Math.max(0, ((netWorth - currentRank.threshold) / (nextRank.threshold - currentRank.threshold)) * 100))
+    : 100;
+
+  // Detect crossing into a new rank and pop a celebration banner
+  useEffect(() => {
+    if (prevRankIndexRef.current === null) {
+      prevRankIndexRef.current = rankIndex;
+      return;
+    }
+    if (rankIndex > prevRankIndexRef.current) {
+      setRankUpToast(RANKS[rankIndex]);
+      if (rankUpTimerRef.current) clearTimeout(rankUpTimerRef.current);
+      rankUpTimerRef.current = setTimeout(() => setRankUpToast(null), 3200);
+    }
+    prevRankIndexRef.current = rankIndex;
+  }, [rankIndex]);
 
   // Keep slider values sane if balance/invested shrink from other actions
   useEffect(() => {
@@ -662,6 +749,11 @@ export default function LuckyTap() {
           background: transparent;
         }
         .lt-slider:disabled { opacity: 0.4; cursor: not-allowed; }
+        @keyframes lt-rankup-in {
+          0% { transform: translateY(-14px); opacity: 0; }
+          100% { transform: translateY(0); opacity: 1; }
+        }
+        .lt-rankup-badge { animation: lt-rankup-in 0.3s ease-out; }
       `}</style>
 
       {/* Ambient background glyphs */}
@@ -733,6 +825,69 @@ export default function LuckyTap() {
           </div>
         </div>
 
+        {/* Rank bar */}
+        <div
+          style={{
+            padding: "12px 22px",
+            borderBottom: `1px solid ${COLORS.glassBorder}`,
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+            <span style={{ color: COLORS.gold, fontWeight: 800, fontSize: 12.5 }}>{currentRank.title}</span>
+            {nextRank ? (
+              <span style={{ color: COLORS.textDim, fontSize: 10.5 }}>
+                Next: {nextRank.title} at ${fmtCompact(nextRank.threshold)}
+              </span>
+            ) : (
+              <span style={{ color: COLORS.textDim, fontSize: 10.5 }}>Max rank reached</span>
+            )}
+          </div>
+          <div style={{ height: 5, borderRadius: 999, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
+            <div
+              style={{
+                height: "100%",
+                width: `${rankProgressPct}%`,
+                background: `linear-gradient(90deg, ${COLORS.gold}, #F3D77A)`,
+                transition: "width 0.4s ease",
+                borderRadius: 999,
+              }}
+            />
+          </div>
+        </div>
+
+        {rankUpToast && (
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              zIndex: 40,
+              display: "flex",
+              justifyContent: "center",
+              padding: "14px 12px 0",
+              pointerEvents: "none",
+            }}
+          >
+            <div
+              className="lt-rankup-badge"
+              style={{
+                background: `linear-gradient(135deg, #F3D77A, ${COLORS.gold} 60%, #B8912E)`,
+                color: "#1A1000",
+                fontWeight: 800,
+                fontSize: 12.5,
+                padding: "10px 16px",
+                borderRadius: 999,
+                boxShadow: "0 14px 34px rgba(0,0,0,0.5), 0 0 26px rgba(227,179,65,0.4)",
+                textAlign: "center",
+                maxWidth: "88%",
+              }}
+            >
+              {"\u{1F451}"} Rank up! You are now {rankUpToast.title}
+            </div>
+          </div>
+        )}
+
         <EventToast event={activeEvent} onInvest={resolveEvent} onSkip={skipEvent} />
 
         {/* Body */}
@@ -772,6 +927,7 @@ export default function LuckyTap() {
               onWithdraw={withdrawFromBonds}
             />
           )}
+          {screen === "ranks" && <RanksScreen rankIndex={rankIndex} netWorth={netWorth} />}
           {screen === "table" && (
             <TableFloor
               wheelBackground={wheelBackground}
@@ -793,11 +949,12 @@ export default function LuckyTap() {
         </div>
 
         {/* Nav */}
-        <div style={{ display: "flex", gap: 8, padding: "12px 16px 18px" }}>
+        <div style={{ display: "flex", gap: 6, padding: "12px 14px 18px" }}>
           {[
             { id: "tap", label: "Tap" },
             { id: "market", label: "Market" },
             { id: "bonds", label: "Bonds" },
+            { id: "ranks", label: "Ranks" },
             { id: "table", label: "Table" },
           ].map((t) => (
             <button
@@ -806,13 +963,13 @@ export default function LuckyTap() {
               onClick={() => setScreen(t.id)}
               style={{
                 flex: 1,
-                padding: "12px 0",
+                padding: "11px 0",
                 borderRadius: 999,
                 border: `1px solid ${screen === t.id ? COLORS.green : COLORS.glassBorder}`,
                 background: screen === t.id ? "rgba(0,230,118,0.12)" : "transparent",
                 color: screen === t.id ? COLORS.green : COLORS.textDim,
                 fontWeight: 700,
-                fontSize: 13,
+                fontSize: 12,
                 cursor: "pointer",
               }}
             >
@@ -860,7 +1017,7 @@ function EventToast({ event, onInvest, onSkip }) {
       className="lt-event-toast"
       style={{
         position: "absolute",
-        top: 84,
+        top: 140,
         right: 14,
         width: 220,
         zIndex: 30,
@@ -1394,6 +1551,116 @@ function Bonds({
         >
           Withdraw ${fmt(withdrawStake)}
         </button>
+      </div>
+    </div>
+  );
+}
+
+function RankRow({ rank, achieved, isCurrent, rowRef }) {
+  const masked = rank.title
+    .split(" ")
+    .map((w) => "\u2588".repeat(w.length))
+    .join(" ");
+  return (
+    <div
+      ref={rowRef}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        padding: "12px 14px",
+        borderRadius: 14,
+        marginBottom: 8,
+        background: isCurrent ? "rgba(227,179,65,0.14)" : achieved ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.015)",
+        border: `1px solid ${isCurrent ? COLORS.gold : achieved ? COLORS.glassBorder : "rgba(255,255,255,0.05)"}`,
+      }}
+    >
+      <div
+        style={{
+          width: 30,
+          height: 30,
+          minWidth: 30,
+          borderRadius: "50%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 14,
+          background: isCurrent
+            ? "rgba(227,179,65,0.22)"
+            : achieved
+            ? "rgba(0,230,118,0.12)"
+            : "rgba(255,255,255,0.05)",
+          border: `1px solid ${isCurrent ? COLORS.gold : achieved ? COLORS.green : "rgba(255,255,255,0.15)"}`,
+        }}
+      >
+        {isCurrent ? "\u{1F451}" : achieved ? "\u2713" : "\u{1F512}"}
+      </div>
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            color: achieved ? COLORS.text : "rgba(245,247,250,0.32)",
+            fontWeight: 700,
+            fontSize: 13,
+            letterSpacing: achieved ? "normal" : "0.03em",
+          }}
+        >
+          {achieved ? rank.title : masked}
+        </div>
+        <div style={{ color: COLORS.textDim, fontSize: 11, marginTop: 2 }}>
+          ${fmtCompact(rank.threshold)}
+          {isCurrent ? " \u2014 you are here" : achieved ? " \u2014 unlocked" : " \u2014 locked"}
+        </div>
+      </div>
+
+      {isCurrent && (
+        <span
+          style={{
+            color: COLORS.gold,
+            fontSize: 10,
+            fontWeight: 800,
+            border: `1px solid ${COLORS.gold}`,
+            borderRadius: 999,
+            padding: "3px 8px",
+            whiteSpace: "nowrap",
+          }}
+        >
+          You
+        </span>
+      )}
+    </div>
+  );
+}
+
+function RanksScreen({ rankIndex, netWorth }) {
+  const currentRowRef = useRef(null);
+  useEffect(() => {
+    if (currentRowRef.current) {
+      currentRowRef.current.scrollIntoView({ block: "center" });
+    }
+  }, []);
+
+  return (
+    <div>
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 17, fontWeight: 800, color: COLORS.text, letterSpacing: "-0.01em" }}>
+          Rank ladder
+        </div>
+        <div style={{ color: COLORS.textDim, fontSize: 13, marginTop: 3 }}>
+          {rankIndex + 1} of {RANKS.length} unlocked \u2014 future titles stay hidden until you get there.
+        </div>
+      </div>
+
+      <div style={{ maxHeight: 380, overflowY: "auto", paddingRight: 2 }}>
+        {RANKS.map((rank, i) => (
+          <RankRow
+            key={rank.threshold}
+            rank={rank}
+            achieved={i <= rankIndex}
+            isCurrent={i === rankIndex}
+            rowRef={i === rankIndex ? currentRowRef : null}
+          />
+        ))}
       </div>
     </div>
   );
