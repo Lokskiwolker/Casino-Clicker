@@ -2,9 +2,11 @@
   "name": "casino-clicker",
   "version": "1.0.0",
   "description": "Just a for fun vibe coded React based game I am building",
-  "main": "index.js",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "repository": {
     "type": "git",
@@ -13,7 +15,6 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
   "bugs": {
     "url": "https://github.com/Lokskiwolker/Casino-Clicker/issues"
   },
